@@ -1,0 +1,20 @@
+# Rust / Cargo
+/target
+**/target
+**/*.rs.bk
+
+# Node / Next.js (repogate-web)
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Claude Code / ruflo tooling (kept out of version control per project policy)
+.claude/
+.claude-flow/
+.mcp.json
+
+# OS / editor
+.DS_Store
+*.log
+*.swp
