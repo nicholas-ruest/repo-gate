@@ -1,6 +1,7 @@
 #![doc = "RepoGate orchestration: headless Claude Code integration and pipeline coordination."]
 
 pub mod claude;
+pub mod job;
 
 /// Errors produced by the orchestrator.
 #[derive(Debug, thiserror::Error)]
@@ -125,5 +126,124 @@ mod tests {
         let path = write_phase_schema(Phase::FeatureDiscovery, dir.path()).unwrap();
         let contents = std::fs::read_to_string(&path).unwrap();
         let _: serde_json::Value = serde_json::from_str(&contents).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod job_tests {
+    use crate::job::*;
+    use repogate_core::{ModuleAssessment, TokenBudget};
+
+    fn budget(total: u64) -> TokenBudget {
+        TokenBudget {
+            total_limit: total,
+            per_phase_limit: total,
+            per_session_limit: total,
+            warn_threshold: 0.8,
+        }
+    }
+
+    fn module_assessment(name: &str) -> ModuleAssessment {
+        ModuleAssessment {
+            module_name: name.to_string(),
+            module_path: format!("src/{name}"),
+            capabilities: vec![],
+            commercial_value_estimate: None,
+            estimated_tier: None,
+            risks: vec![],
+        }
+    }
+
+    #[test]
+    fn budget_records_and_detects_exceeded() {
+        let tracker = BudgetTracker::new(budget(1000));
+        let status = tracker.record_usage(500, 200, 0);
+        assert_eq!(tracker.used(), 700);
+        assert_eq!(status, BudgetStatus::Ok);
+        assert!(!tracker.is_exceeded());
+
+        let status = tracker.record_usage(400, 0, 0); // total 1100 >= 1000
+        assert_eq!(status, BudgetStatus::Exceeded);
+        assert!(tracker.is_exceeded());
+        assert_eq!(tracker.remaining(), 0);
+    }
+
+    #[test]
+    fn budget_cache_read_billed_at_ten_percent() {
+        let tracker = BudgetTracker::new(budget(10_000));
+        tracker.record_usage(0, 0, 1000); // 1000/10 = 100
+        assert_eq!(tracker.used(), 100);
+    }
+
+    #[test]
+    fn phases_to_run_resumes_after_license_scan() {
+        let checkpoint = JobCheckpoint {
+            job_id: "j1".to_string(),
+            last_completed_phase: Some(PhaseKind::LicenseScan),
+            completed_module_ids: vec![],
+            token_usage_so_far: 0,
+            partial_results: serde_json::Value::Null,
+            saved_at: "2026-06-30T00:00:00Z".to_string(),
+        };
+        let remaining = phases_to_run(&checkpoint);
+        assert_eq!(remaining.first(), Some(&PhaseKind::ArchitectureMapping));
+        assert!(!remaining.contains(&PhaseKind::Ingestion));
+        assert!(!remaining.contains(&PhaseKind::LicenseScan));
+        assert!(remaining.contains(&PhaseKind::ReportAssembly));
+    }
+
+    #[test]
+    fn feature_discovery_gate_requires_all_assessments() {
+        let mut job = AssessmentJob::new("https://example.com/x", "2026-06-30T00:00:00Z");
+        job.module_ids = vec!["auth".to_string(), "billing".to_string()];
+
+        // Missing assessments -> gate fails.
+        assert!(validate_gate(PhaseKind::FeatureDiscovery, &job).is_err());
+
+        job.module_assessments.push(module_assessment("auth"));
+        assert!(validate_gate(PhaseKind::FeatureDiscovery, &job).is_err());
+
+        job.module_assessments.push(module_assessment("billing"));
+        assert!(validate_gate(PhaseKind::FeatureDiscovery, &job).is_ok());
+    }
+
+    #[tokio::test]
+    async fn job_store_round_trip() {
+        let store = InMemoryAssessmentJobStore::new();
+        let job = AssessmentJob::new("https://example.com/x", "2026-06-30T00:00:00Z");
+        let id = job.id.clone();
+        store.save(job).await.unwrap();
+
+        let loaded = store.find_by_id(&id).await.unwrap();
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().repo_url, "https://example.com/x");
+
+        let queued = store.find_by_status(JobStatus::Queued).await.unwrap();
+        assert_eq!(queued.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn module_store_exists_and_load_all() {
+        let store = InMemoryModuleAssessmentStore::new();
+        store.save("j1", module_assessment("auth")).await.unwrap();
+        assert!(store.exists("j1", "auth").await.unwrap());
+        assert!(!store.exists("j1", "billing").await.unwrap());
+        assert_eq!(store.load_all("j1").await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn checkpoint_store_round_trip() {
+        let store = InMemoryCheckpointStore::new();
+        let cp = JobCheckpoint {
+            job_id: "j1".to_string(),
+            last_completed_phase: Some(PhaseKind::Ingestion),
+            completed_module_ids: vec![],
+            token_usage_so_far: 42,
+            partial_results: serde_json::Value::Null,
+            saved_at: "2026-06-30T00:00:00Z".to_string(),
+        };
+        store.save(cp).await.unwrap();
+        let loaded = store.load("j1").await.unwrap().unwrap();
+        assert_eq!(loaded.token_usage_so_far, 42);
     }
 }

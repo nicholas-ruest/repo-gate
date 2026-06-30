@@ -746,12 +746,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "repogate-core",
+ "repogate-ingestion",
  "schemars",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
