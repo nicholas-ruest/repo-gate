@@ -1,30 +1,13 @@
 //! Risk-analysis phase (Sonnet, ADR-012).
 
-use repogate_core::{Risk, RiskKind, Severity};
+use repogate_core::{Risk, RiskAnalysisOutput, RiskFinding, RiskKind, Severity};
 use repogate_licensing::LicenseReport;
 use repogate_scoring::ValuationReport;
 use serde::{Deserialize, Serialize};
 
 use super::llm_adapter::FunctionalityInventory;
-use crate::claude::{ClaudeInvocation, ClaudeModel, SessionRunner};
+use crate::claude::{run_structured, ClaudeInvocation, ClaudeModel, SessionRunner};
 use crate::OrchestratorError;
-
-/// A single risk finding returned by the risk-analysis session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RiskFinding {
-    pub category: String,
-    pub severity: Severity,
-    pub description: String,
-    pub mitigation_suggestion: String,
-    pub is_blocking: bool,
-}
-
-/// Structured output of the risk-analysis session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RiskAnalysisOutput {
-    #[serde(default)]
-    pub risks: Vec<RiskFinding>,
-}
 
 /// The aggregated risk profile for an assessment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,18 +39,22 @@ pub async fn run_risk_analysis_phase(
     let invocation = ClaudeInvocation {
         prompt,
         model: ClaudeModel::Sonnet,
-        schema_path: None,
+        schema_path: None, // set by run_structured
         allowed_tools: vec![],
         system_prompt: None,
         working_dir: None,
         session_id: None,
     };
 
-    let output = match session_runner.run(invocation).await {
-        Ok(result) => {
-            serde_json::from_str::<RiskAnalysisOutput>(&result.output).unwrap_or_default()
+    // Schema-enforced with retry (ADR-016 R1). Risk analysis is advisory: if the
+    // session cannot produce valid output, fall back to an empty risk set with a
+    // warning rather than failing the whole assessment.
+    let output = match run_structured::<RiskAnalysisOutput>(session_runner, invocation).await {
+        Ok(structured) => structured.value,
+        Err(_) => {
+            tracing::warn!("risk analysis produced no schema-valid output; reporting no risks");
+            RiskAnalysisOutput::default()
         }
-        Err(_) => RiskAnalysisOutput::default(),
     };
 
     let blocking_risk_count = output.risks.iter().filter(|r| r.is_blocking).count();

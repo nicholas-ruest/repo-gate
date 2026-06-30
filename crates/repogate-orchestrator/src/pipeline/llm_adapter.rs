@@ -18,7 +18,7 @@ pub struct FunctionalityItem {
 }
 
 /// The repository-wide inventory of discovered functionality.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FunctionalityInventory {
     pub repo_id: String,
     pub items: Vec<FunctionalityItem>,
@@ -26,6 +26,12 @@ pub struct FunctionalityInventory {
     pub hidden_count: usize,
     pub enterprise_count: usize,
     pub api_entry_points: Vec<String>,
+    /// Modules whose schema-constrained session failed after retry (ADR-016 R4).
+    #[serde(default)]
+    pub degraded_modules: Vec<String>,
+    /// Modules skipped because the token budget was exhausted (ADR-016 R4).
+    #[serde(default)]
+    pub budget_skipped_modules: Vec<String>,
 }
 
 /// Parse a schema-enforced `ModuleAssessment` from raw model output.

@@ -20,6 +20,13 @@ const TEMPLATE: &str = r#"# RepoGate Assessment Report
 
 {% if gating_strategy %}{% for assignment in gating_strategy.tier_assignments %}- **{{ assignment.module_name }}**: {{ assignment.tier }} — {{ assignment.rationale }}
 {% endfor %}{% endif %}
+## Completeness
+
+{% if completeness %}- Degraded modules: {{ completeness.degraded_modules | length }}
+- Budget-skipped modules: {{ completeness.budget_skipped_modules | length }}
+- Scoring-degraded modules: {{ completeness.scoring_degraded_modules | length }}
+- License detection degraded: {{ completeness.license_detection_degraded }}{% else %}Not recorded.{% endif %}
+
 ## License Posture
 
 {% if repo.license %}Primary license: {{ repo.license }}{% else %}No primary license detected.{% endif %}
@@ -53,6 +60,7 @@ pub fn render_markdown(assessment: &Assessment) -> Result<String, ReportError> {
         gating_strategy => &assessment.gating_strategy,
         risks => &assessment.risks,
         modules => &assessment.modules,
+        completeness => &assessment.completeness,
     })
     .map_err(|e| ReportError::Render(e.to_string()))
 }

@@ -5,13 +5,14 @@ use std::path::Path;
 
 use repogate_core::Layer;
 use repogate_ingestion::RepoManifest;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::claude::{ClaudeInvocation, ClaudeModel, SessionRunner};
+use crate::claude::{run_structured, ClaudeInvocation, ClaudeModel, SessionRunner};
 use crate::OrchestratorError;
 
 /// A functional module identified in the repository.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ModuleNode {
     pub id: String,
     pub name: String,
@@ -56,16 +57,23 @@ pub async fn run_architecture_mapping_phase(
     let invocation = ClaudeInvocation {
         prompt,
         model: ClaudeModel::Sonnet,
-        schema_path: None,
+        schema_path: None, // set by run_structured
         allowed_tools: vec![],
         system_prompt: None,
         working_dir: Some(repo_path.to_path_buf()),
         session_id: None,
     };
 
-    let modules = match session_runner.run(invocation).await {
-        Ok(result) => serde_json::from_str::<Vec<ModuleNode>>(&result.output).unwrap_or(candidates),
-        Err(_) => candidates,
+    // Schema-enforced refinement of the heuristic candidates (ADR-016 R1).
+    // Architecture mapping always has the deterministic candidates as a base, so
+    // a failed/empty refinement keeps the candidates rather than failing the run.
+    let modules = match run_structured::<Vec<ModuleNode>>(session_runner, invocation).await {
+        Ok(structured) if !structured.value.is_empty() => structured.value,
+        Ok(_) => candidates,
+        Err(_) => {
+            tracing::warn!("architecture mapping refinement failed; using heuristic candidates");
+            candidates
+        }
     };
 
     let edges = compute_dependencies(&modules);

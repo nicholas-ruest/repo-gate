@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use repogate_core::Visibility;
+use repogate_core::{ModuleAssessment, Visibility};
 use repogate_ingestion::RepoManifest;
 use tokio::sync::Semaphore;
 
@@ -11,7 +11,9 @@ use super::arch_mapping::ArchitectureMap;
 use super::llm_adapter::{
     map_to_functionality_items, parse_module_assessment, FunctionalityInventory,
 };
-use crate::claude::{select_model, ClaudeInvocation, ClaudeModel, Phase, SessionRunner};
+use crate::claude::{
+    run_structured, select_model, ClaudeInvocation, ClaudeModel, Phase, SessionRunner,
+};
 use crate::job::{BudgetTracker, ModuleAssessmentStore};
 use crate::OrchestratorError;
 
@@ -64,6 +66,8 @@ pub async fn run_single_session_analysis(
         enterprise_count: 0,
         items,
         api_entry_points: Vec::new(),
+        degraded_modules: Vec::new(),
+        budget_skipped_modules: Vec::new(),
     })
 }
 
@@ -114,10 +118,21 @@ pub async fn run_feature_discovery_phase(
     let mut items = Vec::new();
     let mut hidden_count = 0usize;
     let mut enterprise_count = 0usize;
+    let mut degraded_modules = Vec::new();
+    let mut budget_skipped_modules = Vec::new();
 
     for module in &arch_map.modules {
         if budget.is_exceeded() {
-            break;
+            // Record every remaining un-stored module as budget-skipped (ADR-016 R4).
+            if !module_store
+                .exists(job_id, &module.id)
+                .await
+                .unwrap_or(false)
+            {
+                tracing::warn!(module = %module.id, "module skipped: token budget exhausted");
+                budget_skipped_modules.push(module.id.clone());
+            }
+            continue;
         }
         if module_store
             .exists(job_id, &module.id)
@@ -135,41 +150,40 @@ pub async fn run_feature_discovery_phase(
         let prompt = format!(
             "Analyze module `{}` at `{}`. Discover all capabilities (public, \
              internal, experimental, undocumented, enterprise), API entry points, \
-             CLI commands, and SDK exports. Return a ModuleAssessment.",
+             CLI commands, and SDK exports. Score the eight commercial value \
+             dimensions (0-10 each). Return a ModuleAssessment.",
             module.name, module.path
         );
         let invocation = ClaudeInvocation {
             prompt,
             model: select_model(&module.name, Phase::FeatureDiscovery),
-            schema_path: None,
+            schema_path: None, // set by run_structured
             allowed_tools: discovery_tools(),
             system_prompt: None,
             working_dir: Some(repo_path.to_path_buf()),
             session_id: None,
         };
 
-        let result = match session_runner.run(invocation).await {
-            Ok(r) => r,
+        // Schema-enforced with retry-then-surface (ADR-016 R1). A module whose
+        // session fails after retry is recorded as degraded, not silently dropped.
+        let structured = match run_structured::<ModuleAssessment>(session_runner, invocation).await
+        {
+            Ok(s) => s,
             Err(_) => {
+                tracing::warn!(module = %module.id, "module discovery failed schema validation after retry");
+                degraded_modules.push(module.id.clone());
                 drop(permit);
                 continue;
             }
         };
 
         budget.record_usage(
-            result.usage.input_tokens,
-            result.usage.output_tokens,
-            result.usage.cache_read_input_tokens,
+            structured.usage.input_tokens,
+            structured.usage.output_tokens,
+            structured.usage.cache_read_input_tokens,
         );
 
-        let assessment = match parse_module_assessment(&result.output) {
-            Ok(a) => a,
-            Err(_) => {
-                drop(permit);
-                continue;
-            }
-        };
-
+        let assessment = structured.value;
         for item in map_to_functionality_items(&assessment, &module.path) {
             match item.visibility {
                 Visibility::Undocumented => hidden_count += 1,
@@ -194,6 +208,8 @@ pub async fn run_feature_discovery_phase(
         enterprise_count,
         items,
         api_entry_points: Vec::new(),
+        degraded_modules,
+        budget_skipped_modules,
     })
 }
 
@@ -229,6 +245,7 @@ mod tests {
                     discovery_method: DiscoveryMethod::SourceTracing,
                     source_locations: None,
                 }],
+                commercial_score: None,
                 commercial_value_estimate: None,
                 estimated_tier: None,
                 risks: vec![],
@@ -316,6 +333,7 @@ mod tests {
                     module_name: "a".to_string(),
                     module_path: "src/a".to_string(),
                     capabilities: vec![],
+                    commercial_score: None,
                     commercial_value_estimate: None,
                     estimated_tier: None,
                     risks: vec![],

@@ -68,6 +68,7 @@ mod tests {
                 boundary_description: Some("open core".to_string()),
             }),
             risks: vec![],
+            completeness: None,
         }
     }
 
@@ -100,24 +101,8 @@ mod tests {
     #[tokio::test]
     async fn assemble_marks_completion() {
         use repogate_core::ScoreWeights;
+        use repogate_orchestrator::claude::DeterministicMockRunner;
         use repogate_orchestrator::pipeline::{PipelineOutput, PipelineRunner};
-
-        struct NullRunner;
-        impl repogate_orchestrator::claude::SessionRunner for NullRunner {
-            async fn run(
-                &self,
-                _i: repogate_orchestrator::claude::ClaudeInvocation,
-            ) -> Result<
-                repogate_orchestrator::claude::SessionResult,
-                repogate_orchestrator::OrchestratorError,
-            > {
-                Ok(repogate_orchestrator::claude::SessionResult {
-                    session_id: "s".to_string(),
-                    output: "{}".to_string(),
-                    usage: Default::default(),
-                })
-            }
-        }
 
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join("src")).unwrap();
@@ -129,7 +114,7 @@ mod tests {
             per_session_limit: 1_000_000,
             warn_threshold: 0.8,
         };
-        let pipeline = PipelineRunner::new(NullRunner, budget);
+        let pipeline = PipelineRunner::new(DeterministicMockRunner, budget);
         let output: PipelineOutput = pipeline
             .run(
                 "https://github.com/acme/myproject",
@@ -141,6 +126,7 @@ mod tests {
 
         let assessment = assemble(&output, "2026-06-30T00:00:00Z");
         assert!(assessment.is_complete);
+        assert!(assessment.completeness.is_some());
         assert_eq!(assessment.schema_version, "1.0");
         assert_eq!(assessment.repository.name, "myproject");
     }

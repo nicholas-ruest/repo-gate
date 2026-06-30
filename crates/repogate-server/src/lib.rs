@@ -23,6 +23,7 @@ mod tests {
             module_name: name.to_string(),
             module_path: format!("src/{name}"),
             capabilities: vec![],
+            commercial_score: None,
             commercial_value_estimate: Some(6.0),
             estimated_tier: None,
             risks: vec![],
@@ -50,6 +51,7 @@ mod tests {
             modules: vec![],
             gating_strategy: None,
             risks: vec![],
+            completeness: None,
         }
     }
 

@@ -52,6 +52,7 @@ pub fn assemble(output: &PipelineOutput, generated_at: &str) -> Assessment {
         modules,
         gating_strategy: Some(output.strategy.clone()),
         risks: output.risk_profile.risks.clone(),
+        completeness: Some(output.completeness.clone()),
     }
 }
 

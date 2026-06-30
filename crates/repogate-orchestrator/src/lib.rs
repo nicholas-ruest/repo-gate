@@ -149,6 +149,7 @@ mod job_tests {
             module_name: name.to_string(),
             module_path: format!("src/{name}"),
             capabilities: vec![],
+            commercial_score: None,
             commercial_value_estimate: None,
             estimated_tier: None,
             risks: vec![],

@@ -15,6 +15,18 @@ tokio = { workspace = true }
 spdx = { workspace = true }
 walkdir = { workspace = true }
 
+[features]
+# Opt-in SPDX-corpus license detection (ADR-016 Remediation 3). When enabled,
+# license text is matched against a corpus of SPDX license texts (directory set
+# via REPOGATE_ASKALONO_CACHE) using token-cosine similarity, with the
+# signature-phrase heuristic as the fallback.
+#
+# Named for askalono, the originally-chosen backend (ADR-006): askalono 0.4.6 is
+# unmaintained and does not build on current Rust (an rmp-serde incompatibility),
+# so the corpus matcher is implemented dependency-free at the same
+# `identify_license_text` seam, ready to swap to askalono when it is compatible.
+askalono-corpus = []
+
 [dev-dependencies]
 tokio = { workspace = true }
 tempfile = { workspace = true }

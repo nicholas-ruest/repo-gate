@@ -16,6 +16,12 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 toml = { workspace = true }
+tracing = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+# Propagates the askalono SPDX corpus to the licensing crate (ADR-016 R3).
+askalono-corpus = ["repogate-licensing/askalono-corpus"]
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -1,6 +1,16 @@
 # ADR-016 — Closing Analysis-Fidelity Gaps Between the MVP and ADR Design Intent
 
-**Status:** Accepted
+**Status:** Accepted — Implemented
+
+> **Implementation note:** All four remediations are implemented.
+> R1 (schema enforcement + retry-then-surface) via `claude::run_structured`;
+> R2 (real 8-dimension `commercial_score`) in `ModuleAssessment` + `PipelineRunner`;
+> R3 (corpus license detection behind the `askalono-corpus` feature, heuristic
+> fallback) — note askalono 0.4.6 is upstream-incompatible with current Rust, so
+> the corpus matcher is implemented dependency-free at the same
+> `identify_license_text` seam; R4 (`CompletenessMetadata` on `PipelineOutput`
+> and `Assessment`, `tracing` warnings on degraded paths, narrowed `is_complete`,
+> surfaced in JSON + Markdown).
 
 ---
 

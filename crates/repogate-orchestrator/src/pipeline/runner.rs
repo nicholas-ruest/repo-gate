@@ -2,7 +2,9 @@
 
 use std::path::Path;
 
-use repogate_core::{CommercialScore, GatingStrategy, Score, ScoreWeights, TokenBudget};
+use repogate_core::{
+    CommercialScore, CompletenessMetadata, GatingStrategy, Score, ScoreWeights, TokenBudget,
+};
 use repogate_ingestion::{build_manifest, RepoManifest};
 use repogate_licensing::{analyze, CopyleftTier, LicenseReport};
 use repogate_scoring::{score_all_modules, ModuleScoringInput, ValuationReport};
@@ -27,6 +29,14 @@ pub struct PipelineOutput {
     pub strategy: GatingStrategy,
     pub risk_profile: RiskProfile,
     pub is_complete: bool,
+    /// Where the run degraded vs. ran fully (ADR-016 Remediation 4).
+    pub completeness: CompletenessMetadata,
+}
+
+/// Whether the heuristic license detector was used (true unless the askalono
+/// corpus feature is compiled in) — informational completeness signal.
+fn license_detection_is_degraded() -> bool {
+    !cfg!(feature = "askalono-corpus")
 }
 
 const JOB_ID: &str = "pipeline-job";
@@ -78,7 +88,8 @@ impl<R: SessionRunner> PipelineRunner<R> {
         )
         .await?;
 
-        let scoring_inputs = self.build_scoring_inputs(&arch_map, &license_report).await;
+        let (scoring_inputs, scoring_degraded_modules) =
+            self.build_scoring_inputs(&arch_map, &license_report).await;
         let valuation = score_all_modules(&scoring_inputs, weights)
             .map_err(|e| OrchestratorError::SchemaViolation(format!("scoring: {e}")))?;
 
@@ -100,6 +111,13 @@ impl<R: SessionRunner> PipelineRunner<R> {
         )
         .await?;
 
+        let completeness = CompletenessMetadata {
+            degraded_modules: inventory.degraded_modules.clone(),
+            budget_skipped_modules: inventory.budget_skipped_modules.clone(),
+            license_detection_degraded: license_detection_is_degraded(),
+            scoring_degraded_modules,
+        };
+
         Ok(PipelineOutput {
             manifest,
             arch_map,
@@ -108,36 +126,57 @@ impl<R: SessionRunner> PipelineRunner<R> {
             valuation,
             strategy,
             risk_profile,
-            is_complete: !self.budget.is_exceeded(),
+            is_complete: completeness.is_complete() && !self.budget.is_exceeded(),
+            completeness,
         })
     }
 
     /// Build per-module scoring inputs from stored assessments and the repo's
-    /// license posture. A module's commercial estimate seeds all eight
-    /// dimensions; the repo-level copyleft risk seeds the license tier.
+    /// license posture. Uses the model's real 8-dimension `commercial_score`
+    /// when present; otherwise falls back to a uniform seed from the single
+    /// estimate and records the module as scoring-degraded (ADR-016 R2/R4).
+    ///
+    /// Returns the inputs and the list of modules that used the fallback.
     async fn build_scoring_inputs(
         &self,
         arch_map: &ArchitectureMap,
         license_report: &LicenseReport,
-    ) -> Vec<ModuleScoringInput> {
+    ) -> (Vec<ModuleScoringInput>, Vec<String>) {
         let license_tier = repo_license_tier(license_report.overall_risk_score);
         let mut inputs = Vec::new();
+        let mut degraded = Vec::new();
+
         for module in &arch_map.modules {
-            let estimate = self
+            let assessment = self
                 .module_store
                 .find_by_module(JOB_ID, &module.id)
                 .await
                 .ok()
-                .flatten()
-                .and_then(|a| a.commercial_value_estimate)
-                .unwrap_or(5.0);
+                .flatten();
+
+            let commercial_score = match assessment
+                .as_ref()
+                .and_then(|a| a.commercial_score.clone())
+            {
+                Some(score) => score,
+                None => {
+                    let estimate = assessment
+                        .as_ref()
+                        .and_then(|a| a.commercial_value_estimate)
+                        .unwrap_or(5.0);
+                    tracing::warn!(module = %module.id, "scoring used uniform fallback (no per-dimension scores)");
+                    degraded.push(module.id.clone());
+                    uniform_commercial(estimate)
+                }
+            };
+
             inputs.push(ModuleScoringInput {
                 module_id: module.id.clone(),
-                commercial_score: uniform_commercial(estimate),
+                commercial_score,
                 license_tier,
             });
         }
-        inputs
+        (inputs, degraded)
     }
 }
 
@@ -169,7 +208,7 @@ fn repo_license_tier(overall_risk_score: f32) -> CopyleftTier {
 mod tests {
     use super::*;
     use crate::claude::{ClaudeInvocation, SessionResult, UsageStats};
-    use crate::pipeline::risk_analysis::{RiskAnalysisOutput, RiskFinding};
+    use repogate_core::{RiskAnalysisOutput, RiskFinding};
 
     /// Returns a fixed canned output for every invocation; phases that cannot
     /// parse it fall back to deterministic defaults.
@@ -205,10 +244,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("src")).unwrap();
         std::fs::write(dir.path().join("src/lib.rs"), "// x\n").unwrap();
 
-        let runner = CannedRunner {
-            output: "{}".to_string(),
-        };
-        let pipeline = PipelineRunner::new(runner, budget());
+        let pipeline = PipelineRunner::new(crate::claude::DeterministicMockRunner, budget());
         let out = pipeline
             .run(
                 "https://example.com/x",
@@ -218,7 +254,11 @@ mod tests {
             .await
             .unwrap();
 
+        // The phase-aware mock returns schema-valid output with real per-dimension
+        // scores, so the run is fully complete (no degradation).
         assert!(out.is_complete);
+        assert!(out.completeness.is_complete());
+        assert!(out.completeness.scoring_degraded_modules.is_empty());
         assert!(!out.valuation.module_scores.is_empty());
         // Synthesis always populates tier assignments from the valuation.
         assert_eq!(
@@ -303,6 +343,8 @@ mod tests {
             hidden_count: 0,
             enterprise_count: 0,
             api_entry_points: vec![],
+            degraded_modules: vec![],
+            budget_skipped_modules: vec![],
         }
     }
 }

@@ -48,6 +48,7 @@ impl SessionRunner for MockRunner {
                 discovery_method: DiscoveryMethod::SourceTracing,
                 source_locations: None,
             }],
+            commercial_score: None,
             commercial_value_estimate: Some(6.0),
             estimated_tier: None,
             risks: vec![],
@@ -100,7 +101,10 @@ async fn full_pipeline_with_mock_completes() {
     std::fs::create_dir(dir.path().join("src")).unwrap();
     std::fs::write(dir.path().join("src/lib.rs"), "fn x() {}\n").unwrap();
 
-    let pipeline = PipelineRunner::new(MockRunner::new("{}"), budget());
+    let pipeline = PipelineRunner::new(
+        repogate_orchestrator::claude::DeterministicMockRunner,
+        budget(),
+    );
     let output = pipeline
         .run(
             "https://github.com/example/test-repo",
@@ -111,6 +115,7 @@ async fn full_pipeline_with_mock_completes() {
         .expect("pipeline should complete");
 
     assert!(output.is_complete);
+    assert!(output.completeness.is_complete());
     assert!(!output.arch_map.modules.is_empty());
     assert!(!output.valuation.module_scores.is_empty());
     assert!(!output.strategy.tier_assignments.is_empty());
@@ -145,6 +150,7 @@ async fn crash_recovery_reanalyzes_only_remaining_modules() {
                     module_name: id.to_string(),
                     module_path: format!("src/{id}"),
                     capabilities: vec![],
+                    commercial_score: None,
                     commercial_value_estimate: None,
                     estimated_tier: None,
                     risks: vec![],

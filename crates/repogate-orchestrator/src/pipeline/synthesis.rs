@@ -6,7 +6,7 @@ use repogate_scoring::ValuationReport;
 
 use super::arch_mapping::ArchitectureMap;
 use super::llm_adapter::FunctionalityInventory;
-use crate::claude::{ClaudeInvocation, ClaudeModel, SessionRunner};
+use crate::claude::{run_structured, ClaudeInvocation, ClaudeModel, SessionRunner};
 use crate::OrchestratorError;
 
 /// Run the synthesis phase: an Opus session reasons over the JSON summaries and
@@ -30,18 +30,24 @@ pub async fn run_synthesis_phase(
     let invocation = ClaudeInvocation {
         prompt,
         model: ClaudeModel::Opus,
-        schema_path: None,
+        schema_path: None, // set by run_structured
         allowed_tools: vec![],
         system_prompt: None,
         working_dir: None,
         session_id: None,
     };
 
-    let boundary_description = match session_runner.run(invocation).await {
-        Ok(result) => serde_json::from_str::<SynthesisOutput>(&result.output)
-            .ok()
-            .and_then(|s| s.gating_strategy),
-        Err(_) => None,
+    // Schema-enforced with retry (ADR-016 R1). Tier assignments come
+    // deterministically from the valuation regardless, so a failed boundary
+    // narrative degrades gracefully to None with a warning.
+    let boundary_description = match run_structured::<SynthesisOutput>(session_runner, invocation)
+        .await
+    {
+        Ok(structured) => structured.value.gating_strategy,
+        Err(_) => {
+            tracing::warn!("synthesis produced no schema-valid output; boundary narrative omitted");
+            None
+        }
     };
 
     let tier_assignments = valuation

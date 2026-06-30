@@ -128,4 +128,30 @@ mod tests {
             Some("MIT".to_string())
         );
     }
+
+    #[cfg(feature = "askalono-corpus")]
+    #[test]
+    fn corpus_matcher_identifies_nearest_license() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("MIT.txt"),
+            "Permission is hereby granted free of charge to any person obtaining a copy \
+             of this software and associated documentation files",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("Apache-2.0.txt"),
+            "Apache License Version 2.0 January 2004 terms and conditions for use reproduction",
+        )
+        .unwrap();
+        std::env::set_var("REPOGATE_ASKALONO_CACHE", dir.path());
+
+        let query = "Permission is hereby granted, free of charge, to any person obtaining a copy \
+                     of this software and associated documentation files (the Software)";
+        let (id, score) = detect::corpus_best_match(query).expect("a corpus match");
+        assert_eq!(id, "MIT");
+        assert!(score > 0.5, "score was {score}");
+
+        std::env::remove_var("REPOGATE_ASKALONO_CACHE");
+    }
 }

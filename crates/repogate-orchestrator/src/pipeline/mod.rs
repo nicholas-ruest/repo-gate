@@ -18,6 +18,6 @@ pub use feature_discovery::{
 pub use llm_adapter::{
     map_to_functionality_items, parse_module_assessment, FunctionalityInventory, FunctionalityItem,
 };
-pub use risk_analysis::{run_risk_analysis_phase, RiskAnalysisOutput, RiskFinding, RiskProfile};
+pub use risk_analysis::{run_risk_analysis_phase, RiskProfile};
 pub use runner::{PipelineOutput, PipelineRunner};
 pub use synthesis::run_synthesis_phase;

@@ -109,6 +109,7 @@ mod tests {
             modules: vec![],
             gating_strategy: None,
             risks: vec![],
+            completeness: None,
         }
     }
 }

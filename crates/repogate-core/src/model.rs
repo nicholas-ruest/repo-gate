@@ -91,6 +91,33 @@ pub struct Assessment {
     pub modules: Vec<Module>,
     pub gating_strategy: Option<GatingStrategy>,
     pub risks: Vec<Risk>,
+    /// Which parts of the analysis ran degraded vs. fully (ADR-016 Remediation 4).
+    #[serde(default)]
+    pub completeness: Option<CompletenessMetadata>,
+}
+
+/// Records where an analysis run degraded, so a consumer can distinguish a deep
+/// result from a partial/fallback one (ADR-016 Remediation 4).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct CompletenessMetadata {
+    /// Modules whose schema-constrained discovery session failed (after retry).
+    pub degraded_modules: Vec<String>,
+    /// Modules skipped because the token budget was exhausted.
+    pub budget_skipped_modules: Vec<String>,
+    /// Whether license detection used the heuristic fallback (askalono unavailable).
+    pub license_detection_degraded: bool,
+    /// Modules scored with the uniform fallback instead of real per-dimension scores.
+    pub scoring_degraded_modules: Vec<String>,
+}
+
+impl CompletenessMetadata {
+    /// True when no completeness-blocking degradation occurred. License-detection
+    /// degradation is informational and does not block completeness.
+    pub fn is_complete(&self) -> bool {
+        self.degraded_modules.is_empty()
+            && self.budget_skipped_modules.is_empty()
+            && self.scoring_degraded_modules.is_empty()
+    }
 }
 
 /// Recommended tier assignments across all modules in the repository.

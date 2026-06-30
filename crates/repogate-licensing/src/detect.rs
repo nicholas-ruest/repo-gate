@@ -110,9 +110,94 @@ pub(crate) fn extract_spdx_header(line: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// Best-effort identification of a license from its full text, returning the
-/// SPDX id and a confidence score. Replaceable by askalono (see module docs).
+/// Identify a license from its full text, returning the SPDX id and a
+/// confidence score.
+///
+/// With the `askalono-corpus` feature enabled and a corpus directory configured
+/// via `REPOGATE_ASKALONO_CACHE`, this matches the text against SPDX license
+/// texts by token-cosine similarity (ADR-016 Remediation 3) and returns the best
+/// match above [`REVIEW_THRESHOLD`]; otherwise (or on a low score) it uses the
+/// signature-phrase heuristic. The heuristic is always the fallback.
+#[cfg(feature = "askalono-corpus")]
 pub(crate) fn identify_license_text(text: &str) -> Option<(String, f32)> {
+    if let Some((name, score)) = corpus_best_match(text) {
+        if score >= REVIEW_THRESHOLD {
+            return Some((name, score));
+        }
+    }
+    heuristic_identify_license_text(text)
+}
+
+/// Heuristic-only identification (default build, or corpus fallback).
+#[cfg(not(feature = "askalono-corpus"))]
+pub(crate) fn identify_license_text(text: &str) -> Option<(String, f32)> {
+    heuristic_identify_license_text(text)
+}
+
+/// Best corpus match by token-cosine similarity, loading SPDX license texts
+/// (`<SPDX-ID>.txt`) from the directory in `REPOGATE_ASKALONO_CACHE`.
+#[cfg(feature = "askalono-corpus")]
+pub(crate) fn corpus_best_match(text: &str) -> Option<(String, f32)> {
+    let dir = std::env::var("REPOGATE_ASKALONO_CACHE").ok()?;
+    let query = normalize_tokens(text);
+    let mut best: Option<(String, f32)> = None;
+    for entry in std::fs::read_dir(dir).ok()?.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("txt") {
+            continue;
+        }
+        let Some(spdx_id) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(corpus_text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let score = cosine_similarity(&query, &normalize_tokens(&corpus_text));
+        if best.as_ref().map(|(_, s)| score > *s).unwrap_or(true) {
+            best = Some((spdx_id.to_string(), score));
+        }
+    }
+    best
+}
+
+/// Normalize license text into a term-frequency map of lowercased word tokens.
+#[cfg(feature = "askalono-corpus")]
+fn normalize_tokens(text: &str) -> std::collections::HashMap<String, f32> {
+    let mut counts: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
+    for raw in text.split(|c: char| !c.is_alphanumeric()) {
+        if raw.is_empty() {
+            continue;
+        }
+        *counts.entry(raw.to_lowercase()).or_insert(0.0) += 1.0;
+    }
+    counts
+}
+
+/// Cosine similarity between two term-frequency maps.
+#[cfg(feature = "askalono-corpus")]
+fn cosine_similarity(
+    a: &std::collections::HashMap<String, f32>,
+    b: &std::collections::HashMap<String, f32>,
+) -> f32 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let dot: f32 = a
+        .iter()
+        .filter_map(|(k, va)| b.get(k).map(|vb| va * vb))
+        .sum();
+    let norm_a: f32 = a.values().map(|v| v * v).sum::<f32>().sqrt();
+    let norm_b: f32 = b.values().map(|v| v * v).sum::<f32>().sqrt();
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot / (norm_a * norm_b)
+    }
+}
+
+/// Best-effort identification of a license from its full text by matching
+/// distinctive signature phrases. The askalono-corpus feature upgrades this.
+pub(crate) fn heuristic_identify_license_text(text: &str) -> Option<(String, f32)> {
     let upper = text.to_uppercase();
     let has = |needle: &str| upper.contains(needle);
 

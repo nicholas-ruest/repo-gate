@@ -77,6 +77,7 @@ mod tests {
             modules: vec![],
             gating_strategy: None,
             risks: vec![],
+            completeness: None,
         };
         let json = serde_json::to_string(&assessment).unwrap();
         let restored: Assessment = serde_json::from_str(&json).unwrap();

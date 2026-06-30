@@ -7,30 +7,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{anyhow, Context};
 use repogate_core::{Assessment, ScoreWeights, TokenBudget};
 use repogate_ingestion::git::{validate_repo_url, GitProvider, SubprocessGit};
-use repogate_orchestrator::claude::{
-    ClaudeCliRunner, ClaudeInvocation, SessionResult, SessionRunner, UsageStats,
-};
+use repogate_orchestrator::claude::{ClaudeCliRunner, DeterministicMockRunner};
 use repogate_orchestrator::pipeline::PipelineRunner;
-use repogate_orchestrator::OrchestratorError;
 use repogate_report::{render_markdown, render_pdf, to_json_bytes};
 
 use crate::cli::AnalyzeArgs;
 use crate::progress::{ProgressReporter, StderrProgressReporter};
-
-/// A deterministic offline runner enabled by `REPOGATE_MOCK_SESSIONS=true`,
-/// used for CI/e2e runs without live Claude access. Every phase falls back to
-/// its deterministic default from this empty-object output.
-struct MockSessionRunner;
-
-impl SessionRunner for MockSessionRunner {
-    async fn run(&self, _invocation: ClaudeInvocation) -> Result<SessionResult, OrchestratorError> {
-        Ok(SessionResult {
-            session_id: "mock".to_string(),
-            output: "{}".to_string(),
-            usage: UsageStats::default(),
-        })
-    }
-}
 
 /// Approximate blended token price: ~$3 per million tokens.
 const USD_PER_MILLION_TOKENS: f32 = 3.0;
@@ -130,7 +112,7 @@ pub async fn run_analyze(args: AnalyzeArgs) -> anyhow::Result<()> {
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
     let output = if use_mock {
-        PipelineRunner::new(MockSessionRunner, budget)
+        PipelineRunner::new(DeterministicMockRunner, budget)
             .run(&args.repo_url, &repo_path, &ScoreWeights::default())
             .await
     } else {
