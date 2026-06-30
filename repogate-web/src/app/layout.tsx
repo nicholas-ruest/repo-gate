@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'RepoGate',
   description: 'Deep repository assessment for open-core gating',
+  icons: { icon: '/repogate.png' },
 };
 
 export default function RootLayout({

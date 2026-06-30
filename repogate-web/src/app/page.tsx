@@ -36,8 +36,18 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">RepoGate</h1>
-        <p className="text-slate-500 mb-6 text-sm">
+        <div className="flex flex-col items-center mb-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/repogate.png"
+            alt="RepoGate logo"
+            width={96}
+            height={96}
+            className="mb-3"
+          />
+          <h1 className="text-2xl font-bold text-slate-900">RepoGate</h1>
+        </div>
+        <p className="text-slate-500 mb-6 text-sm text-center">
           Paste a repository URL to get open-core gating recommendations.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
