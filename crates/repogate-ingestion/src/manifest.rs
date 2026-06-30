@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::deps::DependencyRecord;
 use crate::language::LanguageStats;
 use crate::walk::FileEntry;
 
@@ -56,6 +57,7 @@ pub struct RepoManifest {
     pub root_dirs: Vec<String>,
     pub file_entries: Vec<FileEntry>,
     pub package_files: Vec<PackageFileRef>,
+    pub dependencies: Vec<DependencyRecord>,
 }
 
 /// Extract the unique top-level directory names relative to `repo_root`.

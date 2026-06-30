@@ -1,10 +1,12 @@
 #![doc = "RepoGate repository ingestion: git cloning, file walking, language detection."]
 
+pub mod deps;
 pub mod git;
 pub mod language;
 pub mod manifest;
 pub mod walk;
 
+pub use deps::{DependencyRecord, Ecosystem};
 pub use git::{GitProvider, SubprocessGit};
 pub use language::LanguageStats;
 pub use manifest::{PackageFileRef, PackageFileType, RepoManifest};
@@ -30,6 +32,15 @@ pub enum IngestionError {
 
     #[error("utf8 error: {0}")]
     Utf8(#[from] std::string::FromUtf8Error),
+
+    #[error("json parse error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("cargo metadata failed")]
+    CargoMetadataFailed,
+
+    #[error("syft not found")]
+    SyftNotFound,
 }
 
 /// Clone `url` into `dest`, walk the tree, and assemble a [`RepoManifest`].
@@ -37,7 +48,11 @@ pub async fn ingest(url: &str, dest: &std::path::Path) -> Result<RepoManifest, I
     let git = SubprocessGit;
     git.clone(url, dest).await?;
     let _head = git.resolve_head(dest).await?;
-    build_manifest(url, dest).await
+    let mut manifest = build_manifest(url, dest).await?;
+    manifest.dependencies = deps::extract_dependencies(&manifest, dest)
+        .await
+        .unwrap_or_default();
+    Ok(manifest)
 }
 
 /// Build a manifest from an already-cloned repository at `repo_path`.
@@ -62,6 +77,7 @@ pub async fn build_manifest(
         root_dirs,
         file_entries: entries,
         package_files,
+        dependencies: Vec::new(),
     })
 }
 
@@ -134,6 +150,79 @@ mod tests {
             .iter()
             .any(|p| p.file_type == PackageFileType::Cargo));
         assert!(manifest.root_dirs.iter().any(|d| d == "src"));
+    }
+
+    #[test]
+    fn cargo_record_preserves_license() {
+        let record = DependencyRecord {
+            name: "serde".to_string(),
+            version: "1.0".to_string(),
+            ecosystem: Ecosystem::Cargo,
+            spdx_license: Some("MIT OR Apache-2.0".to_string()),
+            is_direct: true,
+            is_transitive: false,
+        };
+        assert_eq!(record.spdx_license.as_deref(), Some("MIT OR Apache-2.0"));
+    }
+
+    #[test]
+    fn dependency_record_serde_round_trip() {
+        let record = DependencyRecord {
+            name: "tokio".to_string(),
+            version: "1.40.0".to_string(),
+            ecosystem: Ecosystem::Cargo,
+            spdx_license: Some("MIT".to_string()),
+            is_direct: true,
+            is_transitive: false,
+        };
+        let json = serde_json::to_string(&record).unwrap();
+        let back: DependencyRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(record, back);
+    }
+
+    #[test]
+    fn dedup_removes_duplicate_tuples() {
+        let mk = |n: &str, v: &str| DependencyRecord {
+            name: n.to_string(),
+            version: v.to_string(),
+            ecosystem: Ecosystem::Cargo,
+            spdx_license: None,
+            is_direct: true,
+            is_transitive: false,
+        };
+        let mut deps = vec![mk("a", "1.0"), mk("a", "1.0"), mk("b", "2.0")];
+        deps::dedup_dependencies(&mut deps);
+        assert_eq!(deps.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn syft_missing_returns_not_found_or_ok() {
+        // In environments without syft this must be Err(SyftNotFound), never a panic.
+        let dir = tempfile::tempdir().unwrap();
+        match deps::sbom::extract_sbom_via_syft(dir.path()).await {
+            Err(IngestionError::SyftNotFound) => {}
+            Ok(_) => {} // syft is installed; acceptable
+            Err(other) => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn cargo_metadata_extracts_cargo_deps() {
+        // A minimal, dependency-free crate still lists its own package, so
+        // parse_cargo_deps returns at least one Cargo-ecosystem record offline.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n",
+        )
+        .unwrap();
+        std::fs::create_dir(root.join("src")).unwrap();
+        std::fs::write(root.join("src/lib.rs"), "// fixture\n").unwrap();
+
+        let deps = deps::cargo::parse_cargo_deps(root).await.unwrap();
+        assert!(!deps.is_empty());
+        assert!(deps.iter().all(|d| d.ecosystem == Ecosystem::Cargo));
     }
 
     #[tokio::test]
