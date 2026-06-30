@@ -66,7 +66,7 @@ impl GitProvider for SubprocessGit {
 /// loopback, and RFC-1918 ranges) so a submitted URL cannot be used to reach
 /// internal services — the `RepoUrl` security invariant from the
 /// RepositoryIngestion bounded context.
-pub(crate) fn validate_repo_url(url: &str) -> Result<(), IngestionError> {
+pub fn validate_repo_url(url: &str) -> Result<(), IngestionError> {
     let lowered = url.to_ascii_lowercase();
 
     if lowered.starts_with("file://") {

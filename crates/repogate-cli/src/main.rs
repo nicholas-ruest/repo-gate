@@ -1,9 +1,29 @@
 //! RepoGate CLI entry point.
 
-fn main() {}
+use std::process::ExitCode;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
+use clap::Parser;
+use repogate_cli::cli::{Cli, Commands};
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    let cli = Cli::parse();
+
+    let result = match cli.command {
+        Commands::Analyze(args) => {
+            if args.verbose {
+                let _ = tracing_subscriber::fmt::try_init();
+            }
+            repogate_cli::analyze::run_analyze(args).await
+        }
+        Commands::Cache(args) => repogate_cli::cache_cmd::run_cache(args).await,
+    };
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            ExitCode::FAILURE
+        }
+    }
 }
