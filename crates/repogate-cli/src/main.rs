@@ -16,6 +16,8 @@ async fn main() -> ExitCode {
             }
             repogate_cli::analyze::run_analyze(args).await
         }
+        Commands::Ingest(args) => repogate_cli::agent_flow::run_ingest(args).await,
+        Commands::Synthesize(args) => repogate_cli::agent_flow::run_synthesize(args).await,
         Commands::Cache(args) => repogate_cli::cache_cmd::run_cache(args).await,
     };
 

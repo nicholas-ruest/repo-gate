@@ -1446,6 +1446,7 @@ dependencies = [
  "clap",
  "repogate-core",
  "repogate-ingestion",
+ "repogate-licensing",
  "repogate-orchestrator",
  "repogate-report",
  "repogate-server",

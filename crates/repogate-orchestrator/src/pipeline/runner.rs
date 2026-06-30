@@ -35,7 +35,7 @@ pub struct PipelineOutput {
 
 /// Whether the heuristic license detector was used (true unless the askalono
 /// corpus feature is compiled in) — informational completeness signal.
-fn license_detection_is_degraded() -> bool {
+pub(crate) fn license_detection_is_degraded() -> bool {
     !cfg!(feature = "askalono-corpus")
 }
 
@@ -180,7 +180,7 @@ impl<R: SessionRunner> PipelineRunner<R> {
     }
 }
 
-fn uniform_commercial(value: f32) -> CommercialScore {
+pub(crate) fn uniform_commercial(value: f32) -> CommercialScore {
     let s = Score::new(value.clamp(0.0, 10.0)).unwrap_or_else(|_| Score::new(5.0).unwrap());
     CommercialScore {
         adoption_value: s,
@@ -194,7 +194,7 @@ fn uniform_commercial(value: f32) -> CommercialScore {
     }
 }
 
-fn repo_license_tier(overall_risk_score: f32) -> CopyleftTier {
+pub(crate) fn repo_license_tier(overall_risk_score: f32) -> CopyleftTier {
     if overall_risk_score >= 8.0 {
         CopyleftTier::StrongCopyleft
     } else if overall_risk_score >= 3.0 {

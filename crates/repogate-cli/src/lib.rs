@@ -1,5 +1,6 @@
 #![doc = "RepoGate CLI library: argument parsing, analysis, and cache commands."]
 
+pub mod agent_flow;
 pub mod analyze;
 pub mod cache_cmd;
 pub mod cli;

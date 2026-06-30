@@ -15,10 +15,44 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Analyze a repository and produce a gating assessment.
+    /// Analyze a repository and produce a gating assessment (drives `claude` CLI).
     Analyze(AnalyzeArgs),
+    /// Agent-in-the-loop step 1: clone + ingest a repo for Claude Code to analyze.
+    Ingest(IngestArgs),
+    /// Agent-in-the-loop step 2: score the agent's analysis and render the report.
+    Synthesize(SynthesizeArgs),
     /// Manage the analysis cache.
     Cache(CacheArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct IngestArgs {
+    /// Repository URL.
+    #[arg(value_name = "URL")]
+    pub repo_url: String,
+
+    /// Working directory to write the ingestion artifacts and cloned repo into.
+    #[arg(long, default_value = "repogate-work")]
+    pub out: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct SynthesizeArgs {
+    /// Working directory produced by `ingest` (contains manifest/arch_map/license + your analysis.json).
+    #[arg(long, default_value = "repogate-work")]
+    pub dir: String,
+
+    /// Path to the agent analysis JSON (defaults to <dir>/analysis.json).
+    #[arg(long)]
+    pub analysis: Option<String>,
+
+    /// Output format: json | markdown | pdf.
+    #[arg(long, default_value = "markdown")]
+    pub output: String,
+
+    /// Output file path.
+    #[arg(long)]
+    pub output_file: Option<String>,
 }
 
 #[derive(Parser, Debug)]

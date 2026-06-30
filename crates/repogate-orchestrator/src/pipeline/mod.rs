@@ -3,9 +3,12 @@
 pub mod arch_mapping;
 pub mod feature_discovery;
 pub mod llm_adapter;
+pub mod offline;
 pub mod risk_analysis;
 pub mod runner;
 pub mod synthesis;
+
+pub use offline::{assemble_offline, AgentAnalysis};
 
 pub use arch_mapping::{
     detect_modules_heuristic, generate_ascii_diagram, run_architecture_mapping_phase,

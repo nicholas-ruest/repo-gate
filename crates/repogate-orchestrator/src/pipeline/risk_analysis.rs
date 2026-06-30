@@ -81,6 +81,30 @@ pub async fn run_risk_analysis_phase(
     })
 }
 
+/// Build a [`RiskProfile`] directly from risk findings (used by the
+/// agent-in-the-loop offline path).
+pub fn risk_profile_from_findings(findings: &[RiskFinding]) -> RiskProfile {
+    let blocking_risk_count = findings.iter().filter(|r| r.is_blocking).count();
+    let high_severity_count = findings
+        .iter()
+        .filter(|r| r.severity == Severity::High)
+        .count();
+    let overall_risk_level = if blocking_risk_count > 0 {
+        "high"
+    } else if high_severity_count > 2 {
+        "medium"
+    } else {
+        "low"
+    }
+    .to_string();
+    RiskProfile {
+        risks: map_risks(findings),
+        blocking_risk_count,
+        high_severity_count,
+        overall_risk_level,
+    }
+}
+
 fn map_risks(findings: &[RiskFinding]) -> Vec<Risk> {
     findings
         .iter()
