@@ -1,4 +1,9 @@
 //! Parsing of the `--output-format stream-json` event stream.
+//!
+//! The event shapes match the `claude` CLI's actual stream-json output: a
+//! `system`/`init` event carrying the session id, `assistant` events, and a
+//! terminal `result` event carrying the text (`result`), optional
+//! schema-validated `structured_output`, usage, and an `is_error` flag.
 
 use std::io::BufRead;
 
@@ -8,27 +13,59 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClaudeEvent {
-    #[serde(rename = "init")]
-    Init { session_id: String },
+    /// System lifecycle event; `subtype: "init"` carries the session id.
+    #[serde(rename = "system")]
+    System {
+        #[serde(default)]
+        subtype: Option<String>,
+        #[serde(default)]
+        session_id: Option<String>,
+    },
 
     #[serde(rename = "assistant")]
-    Assistant { content: String },
+    Assistant {
+        #[serde(default)]
+        session_id: Option<String>,
+    },
 
-    #[serde(rename = "tool_result")]
-    ToolResult { result: serde_json::Value },
+    #[serde(rename = "user")]
+    User {
+        #[serde(default)]
+        session_id: Option<String>,
+    },
 
+    /// Terminal event with the final text, optional structured output, and usage.
     #[serde(rename = "result")]
-    Result { content: String, usage: UsageStats },
+    Result {
+        #[serde(default)]
+        subtype: Option<String>,
+        #[serde(default)]
+        is_error: bool,
+        #[serde(default)]
+        result: Option<String>,
+        /// Schema-validated object when `--json-schema` was used.
+        #[serde(default)]
+        structured_output: Option<serde_json::Value>,
+        #[serde(default)]
+        session_id: Option<String>,
+        #[serde(default)]
+        usage: UsageStats,
+    },
 
-    #[serde(rename = "error")]
-    Error { message: String, code: String },
+    /// Any other event type is ignored.
+    #[serde(other)]
+    Other,
 }
 
-/// Token-usage accounting reported in the terminal `result` event.
+/// Token-usage accounting reported in the terminal `result` event. Unknown
+/// fields in the CLI's usage object are ignored.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UsageStats {
+    #[serde(default)]
     pub input_tokens: u64,
+    #[serde(default)]
     pub output_tokens: u64,
+    #[serde(default)]
     pub cache_read_input_tokens: u64,
 }
 

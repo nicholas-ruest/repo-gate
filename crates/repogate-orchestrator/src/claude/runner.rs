@@ -43,12 +43,10 @@ pub async fn run_structured<T>(
 where
     T: DeserializeOwned + JsonSchema,
 {
-    let dir = tempfile::tempdir()
-        .map_err(|e| OrchestratorError::SessionFailed(format!("schema tempdir: {e}")))?;
-    let schema_path = dir.path().join("schema.json");
-    repogate_core::write_schema::<T>(&schema_path)
-        .map_err(|e| OrchestratorError::SchemaViolation(format!("write schema: {e}")))?;
-    invocation.schema_path = Some(schema_path);
+    let schema = schemars::schema_for!(T);
+    let schema_json = serde_json::to_string(&schema)
+        .map_err(|e| OrchestratorError::SchemaViolation(format!("serialize schema: {e}")))?;
+    invocation.schema_json = Some(schema_json);
 
     let mut last_err = String::new();
     for attempt in 0..2 {

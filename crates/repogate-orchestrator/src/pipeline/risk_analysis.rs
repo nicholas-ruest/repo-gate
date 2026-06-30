@@ -39,7 +39,7 @@ pub async fn run_risk_analysis_phase(
     let invocation = ClaudeInvocation {
         prompt,
         model: ClaudeModel::Sonnet,
-        schema_path: None, // set by run_structured
+        schema_json: None, // set by run_structured
         allowed_tools: vec![],
         system_prompt: None,
         working_dir: None,

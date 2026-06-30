@@ -27,7 +27,9 @@ impl ClaudeModel {
 pub struct ClaudeInvocation {
     pub prompt: String,
     pub model: ClaudeModel,
-    pub schema_path: Option<PathBuf>,
+    /// The JSON Schema for structured output, passed inline to `--json-schema`
+    /// (the CLI expects the schema text, not a path).
+    pub schema_json: Option<String>,
     pub allowed_tools: Vec<String>,
     pub system_prompt: Option<String>,
     pub working_dir: Option<PathBuf>,
@@ -37,16 +39,21 @@ pub struct ClaudeInvocation {
 impl ClaudeInvocation {
     /// Build the `claude` command for this invocation.
     ///
-    /// Emits: `claude --bare -p <prompt> --output-format stream-json
-    /// [--json-schema <path>] [--allowedTools <csv>] [--append-system-prompt
-    /// <sys>] --model <id> [--resume <session>]`.
+    /// Emits: `claude --bare -p <prompt> --output-format stream-json --verbose
+    /// [--json-schema <schema-json>] [--allowedTools <csv>]
+    /// [--append-system-prompt <sys>] --model <id> [--resume <session>]`.
+    ///
+    /// `--verbose` is required by the CLI for `--output-format stream-json` under
+    /// `--print`.
     pub fn build_command(&self) -> Command {
         let mut cmd = Command::new("claude");
         cmd.arg("--bare").arg("-p").arg(&self.prompt);
-        cmd.arg("--output-format").arg("stream-json");
+        cmd.arg("--output-format")
+            .arg("stream-json")
+            .arg("--verbose");
 
-        if let Some(schema_path) = &self.schema_path {
-            cmd.arg("--json-schema").arg(schema_path);
+        if let Some(schema_json) = &self.schema_json {
+            cmd.arg("--json-schema").arg(schema_json);
         }
 
         let tools = self.allowed_tools.join(",");

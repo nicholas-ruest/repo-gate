@@ -50,18 +50,41 @@ pub(crate) fn parse_session_output(stdout: &[u8]) -> Result<SessionResult, Orche
 
     for event in StreamParser::parse_stream(reader) {
         match event {
-            Ok(ClaudeEvent::Init { session_id: sid }) => session_id = sid,
-            Ok(ClaudeEvent::Result {
-                content,
-                usage: used,
+            Ok(ClaudeEvent::System {
+                subtype,
+                session_id: sid,
             }) => {
-                output = content;
-                usage = used;
+                if subtype.as_deref() == Some("init") {
+                    if let Some(sid) = sid {
+                        session_id = sid;
+                    }
+                }
             }
-            Ok(ClaudeEvent::Error { message, code }) => {
-                return Err(OrchestratorError::SessionFailed(format!(
-                    "session error {code}: {message}"
-                )));
+            Ok(ClaudeEvent::Result {
+                is_error,
+                result,
+                structured_output,
+                usage: used,
+                session_id: sid,
+                ..
+            }) => {
+                if let Some(sid) = sid {
+                    if session_id.is_empty() {
+                        session_id = sid;
+                    }
+                }
+                usage = used;
+                // Prefer the schema-validated structured output (from
+                // --json-schema); fall back to the result text.
+                output = match structured_output {
+                    Some(value) => serde_json::to_string(&value).unwrap_or_default(),
+                    None => result.clone().unwrap_or_default(),
+                };
+                if is_error {
+                    return Err(OrchestratorError::SessionFailed(
+                        result.unwrap_or_else(|| "session reported an error".to_string()),
+                    ));
+                }
             }
             Ok(_) => {}
             Err(e) => {

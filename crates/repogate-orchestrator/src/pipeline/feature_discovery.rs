@@ -46,7 +46,7 @@ pub async fn run_single_session_analysis(
     let invocation = ClaudeInvocation {
         prompt,
         model: ClaudeModel::Sonnet,
-        schema_path: None,
+        schema_json: None,
         allowed_tools: vec![],
         system_prompt: None,
         working_dir: Some(repo_path.to_path_buf()),
@@ -157,7 +157,7 @@ pub async fn run_feature_discovery_phase(
         let invocation = ClaudeInvocation {
             prompt,
             model: select_model(&module.name, Phase::FeatureDiscovery),
-            schema_path: None, // set by run_structured
+            schema_json: None, // set by run_structured
             allowed_tools: discovery_tools(),
             system_prompt: None,
             working_dir: Some(repo_path.to_path_buf()),

@@ -30,7 +30,7 @@ mod tests {
         let inv = ClaudeInvocation {
             prompt: "assess".to_string(),
             model: ClaudeModel::Opus,
-            schema_path: Some("/tmp/schema.json".into()),
+            schema_json: Some("{\"type\":\"object\"}".to_string()),
             allowed_tools: vec!["Read".to_string(), "Glob".to_string()],
             system_prompt: Some("be precise".to_string()),
             working_dir: None,
@@ -41,6 +41,7 @@ mod tests {
             "--bare",
             "--output-format",
             "stream-json",
+            "--verbose",
             "--json-schema",
             "--allowedTools",
             "--model",
@@ -56,7 +57,7 @@ mod tests {
         let inv = ClaudeInvocation {
             prompt: "x".to_string(),
             model: ClaudeModel::Sonnet,
-            schema_path: None,
+            schema_json: None,
             allowed_tools: vec![],
             system_prompt: None,
             working_dir: None,
@@ -69,21 +70,30 @@ mod tests {
     }
 
     #[test]
-    fn parse_init_event() {
-        let json = r#"{"type":"init","session_id":"test-123"}"#;
+    fn parse_system_init_event() {
+        // Real CLI format: system/init carries the session id.
+        let json = r#"{"type":"system","subtype":"init","session_id":"test-123"}"#;
         let event: ClaudeEvent = serde_json::from_str(json).unwrap();
         match event {
-            ClaudeEvent::Init { session_id } => assert_eq!(session_id, "test-123"),
-            other => panic!("expected Init, got {other:?}"),
+            ClaudeEvent::System {
+                subtype,
+                session_id,
+            } => {
+                assert_eq!(subtype.as_deref(), Some("init"));
+                assert_eq!(session_id.as_deref(), Some("test-123"));
+            }
+            other => panic!("expected System, got {other:?}"),
         }
     }
 
     #[test]
-    fn parse_stream_init_result() {
+    fn parse_stream_init_and_result() {
+        // Real CLI stream-json: system/init then a result event with `result`
+        // text (or `structured_output`) and `usage`.
         let stdout = concat!(
-            r#"{"type":"init","session_id":"s1"}"#,
+            r#"{"type":"system","subtype":"init","session_id":"s1"}"#,
             "\n",
-            r#"{"type":"result","content":"done","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":2}}"#,
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"s1","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":2}}"#,
             "\n",
         );
         let result = session::parse_session_output(stdout.as_bytes()).unwrap();
@@ -93,11 +103,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_stream_surfaces_error_event() {
+    fn parse_stream_prefers_structured_output() {
         let stdout = concat!(
-            r#"{"type":"init","session_id":"s1"}"#,
+            r#"{"type":"system","subtype":"init","session_id":"s1"}"#,
             "\n",
-            r#"{"type":"error","message":"boom","code":"E1"}"#,
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"ignored","structured_output":{"greeting":"hi"},"usage":{}}"#,
+            "\n",
+        );
+        let result = session::parse_session_output(stdout.as_bytes()).unwrap();
+        assert_eq!(result.output, r#"{"greeting":"hi"}"#);
+    }
+
+    #[test]
+    fn parse_stream_surfaces_error_result() {
+        let stdout = concat!(
+            r#"{"type":"system","subtype":"init","session_id":"s1"}"#,
+            "\n",
+            r#"{"type":"result","subtype":"error","is_error":true,"result":"Not logged in","usage":{}}"#,
             "\n",
         );
         let err = session::parse_session_output(stdout.as_bytes()).unwrap_err();
