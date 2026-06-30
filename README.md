@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="repogate.png" alt="RepoGate logo" width="180" />
+<img src="repogate-web/repogate.png" alt="RepoGate logo" width="180" />
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:6366f1,100:8b5cf6&height=200&section=header&text=RepoGate&fontSize=72&fontColor=ffffff&desc=Deep%20Repository%20Assessment%20%26%20Open-Core%20Gating%20Intelligence&descSize=20&descAlignY=62&fontAlignY=40" alt="RepoGate" width="100%" />
 
