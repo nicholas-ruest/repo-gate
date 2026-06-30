@@ -29,3 +29,5 @@ uuid = { version = "1.10", features = ["v4"] }
 tempfile = "3.12"
 spdx = "0.10"
 walkdir = "2.5"
+toml = "0.8"
+minijinja = "2.3"

@@ -2,6 +2,7 @@
 
 pub mod claude;
 pub mod job;
+pub mod pipeline;
 
 /// Errors produced by the orchestrator.
 #[derive(Debug, thiserror::Error)]
