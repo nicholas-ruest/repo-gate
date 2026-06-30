@@ -769,6 +769,8 @@ dependencies = [
  "anyhow",
  "repogate-core",
  "repogate-ingestion",
+ "repogate-licensing",
+ "repogate-scoring",
  "schemars",
  "serde",
  "serde_json",
