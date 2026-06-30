@@ -745,8 +745,11 @@ name = "repogate-orchestrator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "repogate-core",
+ "schemars",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
 ]
