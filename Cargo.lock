@@ -728,9 +728,16 @@ name = "repogate-licensing"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "repogate-core",
+ "repogate-ingestion",
+ "schemars",
  "serde",
  "serde_json",
+ "spdx",
+ "tempfile",
  "thiserror",
+ "tokio",
+ "walkdir",
 ]
 
 [[package]]
@@ -963,6 +970,15 @@ checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys",
+]
+
+[[package]]
+name = "spdx"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3e17e880bafaeb362a7b751ec46bdc5b61445a188f80e0606e68167cd540fa3"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]
