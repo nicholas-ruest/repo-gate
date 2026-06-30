@@ -16,9 +16,13 @@ mod tests {
 
     #[test]
     fn score_valid() {
-        assert!(Score::new(5.0).is_ok());
+        // In-range values construct successfully, including the boundaries.
         assert!(Score::new(0.0).is_ok());
         assert!(Score::new(10.0).is_ok());
+        // Per acceptance criteria, Score::new(5.0) yields Ok(Score(5.0)) — verify
+        // the wrapped value, not merely that construction succeeds.
+        let s = Score::new(5.0).expect("5.0 is in range");
+        assert_eq!(s.get(), 5.0);
     }
 
     #[test]
