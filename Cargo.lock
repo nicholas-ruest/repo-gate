@@ -794,6 +794,9 @@ name = "repogate-scoring"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "repogate-core",
+ "repogate-licensing",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror",

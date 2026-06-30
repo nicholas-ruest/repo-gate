@@ -87,8 +87,20 @@ impl Score {
 }
 
 /// Weighted composite of the 8 commercial scoring dimensions, normalised to `[0.0, 10.0]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
 pub struct CompositeScore(f32);
+
+impl CompositeScore {
+    /// Construct a composite score, clamping to `[0.0, 10.0]`.
+    pub fn new(value: f32) -> Self {
+        CompositeScore(value.clamp(0.0, 10.0))
+    }
+
+    /// The underlying value in `[0.0, 10.0]`.
+    pub fn get(&self) -> f32 {
+        self.0
+    }
+}
 
 /// Eight-dimension commercial value score for a single module.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
