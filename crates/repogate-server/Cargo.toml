@@ -3,15 +3,26 @@ name = "repogate-server"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "repogate_server"
+path = "src/lib.rs"
+
 [[bin]]
 name = "repogate-server"
 path = "src/main.rs"
 
 [dependencies]
+repogate-core = { path = "../repogate-core" }
+repogate-orchestrator = { path = "../repogate-orchestrator" }
 tokio = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sqlx = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
