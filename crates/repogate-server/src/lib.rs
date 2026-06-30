@@ -1,6 +1,7 @@
-#![doc = "RepoGate server library: persistence and (in P15) the HTTP API."]
+#![doc = "RepoGate server library: persistence and the HTTP API."]
 
 pub mod db;
+pub mod http;
 
 #[cfg(test)]
 mod tests {
