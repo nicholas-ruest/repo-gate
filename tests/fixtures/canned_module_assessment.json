@@ -1,0 +1,17 @@
+{
+  "module_name": "auth",
+  "module_path": "src/auth",
+  "capabilities": [
+    {
+      "name": "single sign-on",
+      "description": "SAML/OIDC SSO integration",
+      "is_enterprise": true,
+      "is_undocumented": false,
+      "discovery_method": "SourceTracing",
+      "source_locations": null
+    }
+  ],
+  "commercial_value_estimate": 8.0,
+  "estimated_tier": "EnterpriseTier",
+  "risks": []
+}

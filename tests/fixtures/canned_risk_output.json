@@ -1,0 +1,11 @@
+{
+  "risks": [
+    {
+      "category": "license",
+      "severity": "High",
+      "description": "AGPL-licensed dependency present in a module proposed for the paid tier.",
+      "mitigation_suggestion": "Relicense, replace the dependency, or keep the module open.",
+      "is_blocking": true
+    }
+  ]
+}

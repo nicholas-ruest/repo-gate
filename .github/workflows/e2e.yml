@@ -1,0 +1,41 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Orchestrator integration tests (mock sessions)
+        run: cargo test -p repogate-orchestrator --test e2e_pipeline
+
+      - name: Build CLI
+        run: cargo build -p repogate-cli --release
+
+      - name: Run analyze with mock sessions
+        env:
+          REPOGATE_MOCK_SESSIONS: "true"
+        run: |
+          ./target/release/repogate analyze \
+            https://github.com/BurntSushi/toml \
+            --budget 0.50 \
+            --yes \
+            --output json \
+            --output-file assessment.json
+
+      - name: Validate JSON output
+        run: |
+          test -f assessment.json
+          grep -q '"schema_version": "1.0"' assessment.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assessment
+          path: assessment.json

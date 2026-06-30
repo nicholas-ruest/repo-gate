@@ -20,3 +20,6 @@ toml = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true }
 tempfile = { workspace = true }
+repogate-core = { path = "../repogate-core" }
+repogate-ingestion = { path = "../repogate-ingestion" }
+serde_json = { workspace = true }

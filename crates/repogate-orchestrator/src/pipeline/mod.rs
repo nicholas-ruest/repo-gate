@@ -11,7 +11,10 @@ pub use arch_mapping::{
     detect_modules_heuristic, generate_ascii_diagram, run_architecture_mapping_phase,
     ArchitectureMap, ModuleNode,
 };
-pub use feature_discovery::run_feature_discovery_phase;
+pub use feature_discovery::{
+    run_feature_discovery_phase, run_single_session_analysis, should_use_repomix,
+    REPOMIX_LOC_THRESHOLD,
+};
 pub use llm_adapter::{
     map_to_functionality_items, parse_module_assessment, FunctionalityInventory, FunctionalityItem,
 };

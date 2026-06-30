@@ -4,15 +4,85 @@
 use std::path::Path;
 
 use repogate_core::Visibility;
+use repogate_ingestion::RepoManifest;
 use tokio::sync::Semaphore;
 
 use super::arch_mapping::ArchitectureMap;
 use super::llm_adapter::{
     map_to_functionality_items, parse_module_assessment, FunctionalityInventory,
 };
-use crate::claude::{select_model, ClaudeInvocation, Phase, SessionRunner};
+use crate::claude::{select_model, ClaudeInvocation, ClaudeModel, Phase, SessionRunner};
 use crate::job::{BudgetTracker, ModuleAssessmentStore};
 use crate::OrchestratorError;
+
+/// Repositories below this LOC threshold use the single-session (repomix) path
+/// instead of per-module fan-out (ADR-008).
+pub const REPOMIX_LOC_THRESHOLD: usize = 50_000;
+
+/// Whether a repository is small enough for the single-session repomix path.
+pub fn should_use_repomix(manifest: &RepoManifest) -> bool {
+    manifest.total_loc < REPOMIX_LOC_THRESHOLD
+}
+
+/// Small-repo path: pack the whole repo (repomix when available) and run exactly
+/// one Claude session over it. Falls back to a lightweight directory context
+/// when repomix is not installed, so it always issues a single session.
+pub async fn run_single_session_analysis(
+    repo_path: &Path,
+    session_runner: &impl SessionRunner,
+    job_id: &str,
+) -> Result<FunctionalityInventory, OrchestratorError> {
+    let context = pack_with_repomix(repo_path)
+        .await
+        .unwrap_or_else(|| format!("Repository at {}", repo_path.display()));
+
+    let prompt = format!(
+        "Analyze this entire repository and identify all capabilities (public, \
+         internal, experimental, undocumented, enterprise). Return a \
+         ModuleAssessment with module_name \"all\".\n\n{context}"
+    );
+    let invocation = ClaudeInvocation {
+        prompt,
+        model: ClaudeModel::Sonnet,
+        schema_path: None,
+        allowed_tools: vec![],
+        system_prompt: None,
+        working_dir: Some(repo_path.to_path_buf()),
+        session_id: None,
+    };
+
+    let result = session_runner.run(invocation).await?;
+    let items = match parse_module_assessment(&result.output) {
+        Ok(assessment) => map_to_functionality_items(&assessment, ""),
+        Err(_) => Vec::new(),
+    };
+
+    Ok(FunctionalityInventory {
+        repo_id: job_id.to_string(),
+        total_count: items.len(),
+        hidden_count: 0,
+        enterprise_count: 0,
+        items,
+        api_entry_points: Vec::new(),
+    })
+}
+
+/// Pack a repository into a single text blob with repomix; `None` if repomix is
+/// absent or fails.
+async fn pack_with_repomix(repo_path: &Path) -> Option<String> {
+    let output = tokio::process::Command::new("repomix")
+        .arg("--output-format")
+        .arg("xml")
+        .arg(repo_path)
+        .output()
+        .await
+        .ok()?;
+    if output.status.success() {
+        String::from_utf8(output.stdout).ok()
+    } else {
+        None
+    }
+}
 
 fn discovery_tools() -> Vec<String> {
     vec![

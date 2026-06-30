@@ -1,0 +1,4 @@
+{
+  "gating_strategy": "Keep the core runtime open; gate SSO, RBAC, and audit logging behind the enterprise tier.",
+  "tier_assignments": []
+}
