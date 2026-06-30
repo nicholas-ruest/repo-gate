@@ -53,7 +53,7 @@ pub enum Layer {
 }
 
 /// Primary programming language of a module or repository.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "PascalCase")]
 pub enum Language {
     Rust,
