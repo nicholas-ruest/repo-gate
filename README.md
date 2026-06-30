@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="repogate-web/repogate.png" alt="RepoGate" width="600" />
-
-# RepoGate
+# 🚧 RepoGate
 
 ### 🛡️ Decide what stays **open**, what becomes **commercial**, and what needs **legal review** — with confidence.
 
@@ -32,6 +30,12 @@
 ---
 
 ## 📋 Overview
+
+<div align="center">
+
+<img src="repogate-web/repogate.png" alt="RepoGate" width="600" />
+
+</div>
 
 > **RepoGate** is a deep repository assessment platform that analyzes complete open-source codebases to determine **what functionality should remain open source**, **what should be commercialized into paid tiers**, and **what requires legal or licensing review** before packaging.
 
