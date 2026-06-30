@@ -37,21 +37,70 @@ mod tests {
     }
 
     #[test]
-    fn composite_all_five_is_about_five() {
+    fn composite_all_five_leans_open() {
+        // With moderate gate pressure (5) and a moderate openness discount, an
+        // all-average module leans toward open rather than sitting at the
+        // midpoint (ADR-017 recalibration).
         let composite = compute_composite(&uniform_scores(5.0), &ScoreWeights::default());
         assert!(
-            composite.get() >= 4.5 && composite.get() <= 5.5,
+            composite.get() > 2.5 && composite.get() < 4.5,
             "composite was {}",
             composite.get()
         );
     }
 
     #[test]
-    fn high_support_burden_lowers_composite() {
+    fn high_support_burden_raises_gateability() {
+        // Heavy support burden is an enterprise-tier signal (ADR-010), so it now
+        // increases the gating composite rather than lowering it.
+        let base = compute_composite(&uniform_scores(5.0), &ScoreWeights::default());
         let mut scores = uniform_scores(5.0);
         scores.support_burden = Score::new(10.0).unwrap();
-        let composite = compute_composite(&scores, &ScoreWeights::default());
-        assert!(composite.get() < 5.0, "composite was {}", composite.get());
+        let with_burden = compute_composite(&scores, &ScoreWeights::default());
+        assert!(
+            with_burden.get() > base.get(),
+            "{} should exceed {}",
+            with_burden.get(),
+            base.get()
+        );
+    }
+
+    #[test]
+    fn high_adoption_commodity_scores_open_while_ip_scores_gated() {
+        // A high-adoption commodity (low IP) lands near Open; a high-IP, low-
+        // adoption module lands clearly higher (ADR-017 separation).
+        let weights = ScoreWeights::default();
+        let commodity = CommercialScore {
+            adoption_value: Score::new(9.0).unwrap(),
+            enterprise_buyer_value: Score::new(3.0).unwrap(),
+            commercial_leverage: Score::new(3.0).unwrap(),
+            competitive_sensitivity: Score::new(2.0).unwrap(),
+            operational_value: Score::new(4.0).unwrap(),
+            security_sensitivity: Score::new(2.0).unwrap(),
+            support_burden: Score::new(3.0).unwrap(),
+            strategic_importance: Score::new(8.0).unwrap(),
+        };
+        let ip = CommercialScore {
+            adoption_value: Score::new(4.0).unwrap(),
+            enterprise_buyer_value: Score::new(8.0).unwrap(),
+            commercial_leverage: Score::new(8.0).unwrap(),
+            competitive_sensitivity: Score::new(9.0).unwrap(),
+            operational_value: Score::new(4.0).unwrap(),
+            security_sensitivity: Score::new(3.0).unwrap(),
+            support_burden: Score::new(6.0).unwrap(),
+            strategic_importance: Score::new(6.0).unwrap(),
+        };
+        let commodity_c = compute_composite(&commodity, &weights).get();
+        let ip_c = compute_composite(&ip, &weights).get();
+        assert!(
+            commodity_c < 2.5,
+            "commodity composite {commodity_c} should be Open-range"
+        );
+        assert!(
+            ip_c >= 4.5,
+            "ip composite {ip_c} should be at least ProTier-range"
+        );
+        assert!(ip_c > commodity_c + 2.0);
     }
 
     #[test]

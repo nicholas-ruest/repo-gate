@@ -26,6 +26,7 @@ ADRs are append-only. Superseded decisions are marked with a reference to the su
 | [ADR-014](ADR-014-persistence-sqlx-sqlite-postgres.md) | Persistence with `sqlx`: SQLite for Dev/Local, Postgres for Production | Accepted | Data Layer |
 | [ADR-015](ADR-015-web-api-layer-axum-nextjs.md) | Web and API Layer: `axum` HTTP Server and Next.js Dashboard | Accepted | API & UI |
 | [ADR-016](ADR-016-closing-analysis-fidelity-gaps.md) | Closing Analysis-Fidelity Gaps Between the MVP and ADR Design Intent | Accepted | Cross-cutting |
+| [ADR-017](ADR-017-recalibrate-gating-score.md) | Recalibrate the Composite as a Gating-Pressure Score | Accepted | Scoring |
 
 ---
 
