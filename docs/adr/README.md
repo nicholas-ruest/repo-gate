@@ -25,6 +25,7 @@ ADRs are append-only. Superseded decisions are marked with a reference to the su
 | [ADR-013](ADR-013-token-budget-enforcement.md) | Token-Budget Enforcement and Pre-Run Cost Estimation | Accepted | Cost & Operations |
 | [ADR-014](ADR-014-persistence-sqlx-sqlite-postgres.md) | Persistence with `sqlx`: SQLite for Dev/Local, Postgres for Production | Accepted | Data Layer |
 | [ADR-015](ADR-015-web-api-layer-axum-nextjs.md) | Web and API Layer: `axum` HTTP Server and Next.js Dashboard | Accepted | API & UI |
+| [ADR-016](ADR-016-closing-analysis-fidelity-gaps.md) | Closing Analysis-Fidelity Gaps Between the MVP and ADR Design Intent | Accepted | Cross-cutting |
 
 ---
 
@@ -51,6 +52,8 @@ ADRs are append-only. Superseded decisions are marked with a reference to the su
 **Budget:** Dollar-denominated budget enforcement with pre-run cost estimation; note June 15 2026 billing change — programmatic `claude` draws from a separate credit pool at API list prices (ADR-013).
 
 **API + UI:** `axum` REST API + Next.js static dashboard; single binary serves both in production (ADR-015).
+
+**MVP fidelity gaps and remediation:** Four gaps between ADR design intent and the MVP implementation — schema enforcement not wired, 8-dimension scoring seeded from a single float, heuristic license detection instead of `askalono`, and silent fallbacks without structured observability signals — are documented with sequenced remediations in ADR-016.
 
 ---
 
