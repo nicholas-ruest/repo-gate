@@ -24,11 +24,11 @@ pub enum ReportError {
     #[error("template render error: {0}")]
     Render(String),
 
-    #[error("pandoc not found")]
-    PandocNotFound,
+    #[error("pdf engine (weasyprint) not found")]
+    PdfEngineNotFound,
 
-    #[error("pandoc error: {0}")]
-    PandocError(String),
+    #[error("pdf engine error: {0}")]
+    PdfEngineError(String),
 }
 
 #[cfg(test)]
