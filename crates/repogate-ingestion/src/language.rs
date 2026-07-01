@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use repogate_core::Language;
 use serde::{Deserialize, Serialize};
 
-use crate::walk::{count_lines, FileEntry};
+use crate::walk::FileEntry;
 
 /// Lines of code per detected language across the repository.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -31,8 +31,7 @@ pub fn compute_language_stats(entries: &[FileEntry]) -> LanguageStats {
             continue;
         }
         if let Some(lang) = entry.language.clone() {
-            let loc = count_lines(&entry.path);
-            *counts.entry(lang).or_insert(0) += loc;
+            *counts.entry(lang).or_insert(0) += entry.loc;
         }
     }
 
