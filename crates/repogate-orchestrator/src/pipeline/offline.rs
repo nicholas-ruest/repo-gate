@@ -106,7 +106,7 @@ pub fn assemble_offline(
     let completeness = CompletenessMetadata {
         degraded_modules: Vec::new(),
         budget_skipped_modules: Vec::new(),
-        license_detection_degraded: license_detection_is_degraded(),
+        license_detection_degraded: license_detection_is_degraded(license_report),
         scoring_degraded_modules,
     };
 

@@ -33,10 +33,12 @@ pub struct PipelineOutput {
     pub completeness: CompletenessMetadata,
 }
 
-/// Whether the heuristic license detector was used (true unless the askalono
-/// corpus feature is compiled in) — informational completeness signal.
-pub(crate) fn license_detection_is_degraded() -> bool {
-    !cfg!(feature = "askalono-corpus")
+/// Whether license detection is degraded: the heuristic detector (used unless
+/// the askalono corpus feature is compiled in) ran *and* produced no detections.
+/// A successful heuristic detection — e.g. a cleanly identified LICENSE — is not
+/// degraded, even without the corpus feature.
+pub(crate) fn license_detection_is_degraded(license_report: &LicenseReport) -> bool {
+    !cfg!(feature = "askalono-corpus") && license_report.detections.is_empty()
 }
 
 const JOB_ID: &str = "pipeline-job";
@@ -114,7 +116,7 @@ impl<R: SessionRunner> PipelineRunner<R> {
         let completeness = CompletenessMetadata {
             degraded_modules: inventory.degraded_modules.clone(),
             budget_skipped_modules: inventory.budget_skipped_modules.clone(),
-            license_detection_degraded: license_detection_is_degraded(),
+            license_detection_degraded: license_detection_is_degraded(&license_report),
             scoring_degraded_modules,
         };
 

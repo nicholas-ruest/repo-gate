@@ -89,11 +89,36 @@ pub async fn run_architecture_mapping_phase(
 /// Detect candidate modules using deterministic heuristics: Cargo workspace
 /// members when present, otherwise top-level source directories.
 pub fn detect_modules_heuristic(manifest: &RepoManifest, repo_path: &Path) -> Vec<ModuleNode> {
-    let workspace = detect_workspace_members(repo_path);
-    if !workspace.is_empty() {
-        return workspace;
+    let mut modules = detect_workspace_members(repo_path);
+    if modules.is_empty() {
+        modules = detect_top_level_dirs(manifest, repo_path);
     }
-    detect_top_level_dirs(manifest, repo_path)
+    populate_module_sizes(&mut modules, manifest, repo_path);
+    modules
+}
+
+/// Attribute each source file's line count to the most specific detected module
+/// that contains it. Heuristic detection leaves `file_count`/`loc` at zero, so
+/// without this pass the assembled report shows `LOC: 0` for every module.
+fn populate_module_sizes(modules: &mut [ModuleNode], manifest: &RepoManifest, repo_path: &Path) {
+    for entry in &manifest.file_entries {
+        if entry.is_binary || entry.is_generated {
+            continue;
+        }
+        let Ok(rel) = entry.path.strip_prefix(repo_path) else {
+            continue;
+        };
+        // A nested module path (e.g. `crates/foo/bar`) wins over its parent so a
+        // file is counted once, against the tightest-fitting module.
+        if let Some(module) = modules
+            .iter_mut()
+            .filter(|m| rel.starts_with(&m.path))
+            .max_by_key(|m| m.path.len())
+        {
+            module.file_count += 1;
+            module.loc += entry.loc;
+        }
+    }
 }
 
 fn detect_workspace_members(repo_path: &Path) -> Vec<ModuleNode> {

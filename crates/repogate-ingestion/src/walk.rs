@@ -19,6 +19,10 @@ pub struct FileEntry {
     pub hash: String,
     /// True when the file looks vendored or machine-generated.
     pub is_generated: bool,
+    /// Text line count (0 for binary files). `#[serde(default)]` so manifests
+    /// written before this field existed still deserialize.
+    #[serde(default)]
+    pub loc: usize,
 }
 
 const KNOWN_BINARY_EXTENSIONS: &[&str] = &[
@@ -73,6 +77,7 @@ fn walk_blocking(repo_path: &Path) -> Result<Vec<FileEntry>, IngestionError> {
         } else {
             hash_file(path).unwrap_or_default()
         };
+        let loc = if is_binary { 0 } else { count_lines(path) };
 
         entries.push(FileEntry {
             path: path.to_path_buf(),
@@ -81,6 +86,7 @@ fn walk_blocking(repo_path: &Path) -> Result<Vec<FileEntry>, IngestionError> {
             language,
             hash,
             is_generated,
+            loc,
         });
     }
 
